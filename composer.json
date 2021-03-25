@@ -1,0 +1,23 @@
+{
+    "name": "error500/yii2-bootstrap-vue",
+    "version": "0.0.1-rc1",
+    "description": "Replace for yii2-bootstrap",
+    "type": "yii2-extension",
+    "keywords": [
+        "yii2",
+        "extension"
+    ],
+    "license": "GPL-3.0",
+    "authors": [{
+        "name": "error500",
+        "email": "error500@error500.ru"
+    }],
+    "require": {
+        "yiisoft/yii2": "~2.0.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "yii\\bootstrap_vue\\": "src/"
+        }
+    }
+}
