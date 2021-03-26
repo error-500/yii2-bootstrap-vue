@@ -1,6 +1,6 @@
 {
     "name": "error500/yii2-bootstrap-vue",
-    "version": "0.0.1-rc2",
+    "version": "0.0.1-rc3",
     "description": "Replace for yii2-bootstrap",
     "type": "yii2-extension",
     "keywords": [
@@ -17,10 +17,10 @@
     },
     "extra": {
        "branch-alias": {
-            "master": "0.0.1-rc2",
-            "dev-master": "0.0.1-rc2",
+            "main": "0.0.1-rc3",
+            "dev-master": "0.0.1-rc3",
             "dev": "develop",
-            "0.0.1": "0.0.1-rc2"
+            "0.0.1": "0.0.1-rc3"
        }
     },
     "autoload": {
