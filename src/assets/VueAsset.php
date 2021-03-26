@@ -38,10 +38,10 @@ class VueAsset extends AssetBundle
         );
         if (!isset($view->js[\yii\web\View::POS_END]['vue-app-init'])) {
             Yii::$app->vueApp->mounted = [
-                '$.holdReady(false);',
+                "if ($)\n{\n\t$.holdReady(false);\n}\n",
             ];
             $view->registerJs(
-                "$.holdReady(true);\n".
+                "if ($)\n{\n\t$.holdReady(true);\n}\n".
                 Yii::$app->vueApp,
                 View::POS_END,
                 'vue-app-init'
