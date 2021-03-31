@@ -36,6 +36,9 @@ class VueAsset extends AssetBundle
             'window.bundleUrl = "'.$this->baseUrl.'/";',
             \yii\web\View::POS_HEAD
         );
+        Yii::$app->vueApp->data = [
+            'bundleUrl' => $this->baseUrl,
+        ];
         if (!isset($view->js[\yii\web\View::POS_END]['vue-app-init'])) {
             Yii::$app->vueApp->mounted = [
                 "if (typeof $ !== 'undefined') {\n\t$.holdReady(false);\n}\n",
