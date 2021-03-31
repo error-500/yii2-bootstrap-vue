@@ -1,8 +1,7 @@
 <?php
 
-namespace yii\bootstrap_vue\VueApp;
+namespace yii\bootstrap_vue;
 
-use app\components\VueApp\assets\BootstrapVueAsset;
 use Exception;
 use ReflectionClass;
 use ReflectionProperty;
