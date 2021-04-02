@@ -9,6 +9,7 @@ use RuntimeException;
 use Throwable;
 use Yii;
 use yii\base\Component;
+use yii\base\Model;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Json;
 use yii\web\ErrorHandler;
@@ -39,6 +40,7 @@ class VueObject extends Component
     {
         $jsLines = [];
         foreach ($array as $jsKey => $value) {
+            Yii::info(Yii::t('app', 'Validate JS string with key - {0} ', [$jsKey]));
             switch (true) {
                 case is_array($value):
                     if (ArrayHelper::isAssociative($value)) {
@@ -47,24 +49,39 @@ class VueObject extends Component
                         $value = "[\n\t" . self::ArrayToJsString($value) . "\n]";
                     }
                 break;
-
+                case ($value instanceof Model):
+                    Yii::info(Yii::t('app', '{0} is yii\base\Model', [$jsKey]));
+                    $value = "{\n\t" . self::ArrayToJsString($value->toArray()) . "\n}";
+                break;
                 case is_object($value):
+                    Yii::info(Yii::t('app', '{0} is object ', [$jsKey]));
                     $value = "{\n\t" . self::ArrayToJsString($value) . "\n}";
                 break;
 
                 case \is_null($value):
+                    Yii::info(Yii::t('app', '{0} is Null', [$jsKey]));
                     $value = 'null';
                 break;
+                case \is_bool($value) :
+                    Yii::info(Yii::t('app', '{0} is boolean', [$jsKey]));
+                    $value = $value ? 'true' : 'false';
+                break;
                 case (null !== $json = \json_decode($value)):
+                    Yii::info(Yii::t('app', '{0} is JSON decode {1}', [$jsKey, $value]));
                     $value = $value;
                 break;
 
                 case (is_string($value) && empty($value)):
+                    Yii::info(Yii::t('app', '{0} is empty string', [$jsKey]));
                     $value = "''";
                 break;
                 case (\is_string($value) && \preg_match('/^function\(.+/i', $value)):
+                case (\is_string($value) && \preg_match('/^\(\D*\)\s?=>.+/i', $value)):
+                    Yii::info(Yii::t('app', 'JS inline function string with key {1} found: {0}', [$value, $jsKey]));
+                    $value = $value;
                 break;
-                case (is_string($value) && null === $json = \json_decode($value)):
+                case (is_string($value) && (null === $json = \json_decode($value))):
+                    Yii::info(Yii::t('app', '{0} is plain text', [$jsKey]));
                     $value = "'$value'";
                 break;
             }
