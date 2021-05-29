@@ -34,13 +34,16 @@ class VueObject extends Component
     ];
     public function init()
     {
-        $this->data['csrfToken'] = '"'.Yii::$app->request->csrfToken.'"';
+        $this->data['csrfToken'] = '"' . Yii::$app->request->csrfToken . '"';
     }
     public static function ArrayToJsString($array)
     {
         $jsLines = [];
         foreach ($array as $jsKey => $value) {
             Yii::info(Yii::t('app', 'Validate JS string with key - {0} ', [$jsKey]));
+            if (\is_callable($value)) {
+                $value = \call_user_func($value);
+            }
             switch (true) {
                 case is_array($value):
                     if (ArrayHelper::isAssociative($value)) {
@@ -48,42 +51,42 @@ class VueObject extends Component
                     } else {
                         $value = "[\n\t" . self::ArrayToJsString($value) . "\n]";
                     }
-                break;
+                    break;
                 case ($value instanceof Model):
                     Yii::info(Yii::t('app', '{0} is yii\base\Model', [$jsKey]));
                     $value = "{\n\t" . self::ArrayToJsString($value->toArray()) . "\n}";
-                break;
+                    break;
                 case is_object($value):
                     Yii::info(Yii::t('app', '{0} is object ', [$jsKey]));
                     $value = "{\n\t" . self::ArrayToJsString($value) . "\n}";
-                break;
+                    break;
 
                 case \is_null($value):
                     Yii::info(Yii::t('app', '{0} is Null', [$jsKey]));
                     $value = 'null';
-                break;
-                case \is_bool($value) :
+                    break;
+                case \is_bool($value):
                     Yii::info(Yii::t('app', '{0} is boolean', [$jsKey]));
                     $value = $value ? 'true' : 'false';
-                break;
+                    break;
                 case (null !== $json = \json_decode($value)):
                     Yii::info(Yii::t('app', '{0} is JSON decode {1}', [$jsKey, $value]));
                     $value = $value;
-                break;
+                    break;
 
                 case (is_string($value) && empty($value)):
                     Yii::info(Yii::t('app', '{0} is empty string', [$jsKey]));
                     $value = "''";
-                break;
+                    break;
                 case (\is_string($value) && \preg_match('/^function\(.+/i', $value)):
                 case (\is_string($value) && \preg_match('/^\(\D*\)\s?=>.+/i', $value)):
                     Yii::info(Yii::t('app', 'JS inline function string with key {1} found: {0}', [$value, $jsKey]));
                     $value = $value;
-                break;
+                    break;
                 case (is_string($value) && (null === $json = \json_decode($value))):
                     Yii::info(Yii::t('app', '{0} is plain text', [$jsKey]));
                     $value = "'$value'";
-                break;
+                    break;
             }
             if (ArrayHelper::isAssociative($array)) {
                 $jsLines[] = $jsKey . ":" . $value;
@@ -195,7 +198,8 @@ class VueObject extends Component
         $keysList = array_keys($options);
         if (!in_array($name, $keysList)) {
             throw new RuntimeException(
-                /*Yii::t('app',*/ 'Try set undefined Vue property '.$name /*{0}', [$name])*/
+                /*Yii::t('app',*/
+                'Try set undefined Vue property ' . $name /*{0}', [$name])*/
             );
         }
 
@@ -206,7 +210,8 @@ class VueObject extends Component
                     && !ArrayHelper::isAssociative($value))
             ) {
                 throw new RuntimeException(
-                    /*Yii::t('app',*/ 'Value for "{0}" must bee associative array - input was: {1}'/*, [$name, \var_export($value, true)])*/
+                    /*Yii::t('app',*/
+                    'Value for "{0}" must bee associative array - input was: {1}'/*, [$name, \var_export($value, true)])*/
                 );
             }
 
@@ -217,7 +222,8 @@ class VueObject extends Component
         if (is_string($this->$name) || \array_key_exists($name, ['created', 'updeted', 'mounted'])) {
             if (!is_string($value)) {
                 throw new RuntimeException(
-                    /*Yii::t('app',*/ 'Value "{0}" must be string'/*, [$name])*/
+                    /*Yii::t('app',*/
+                    'Value "{0}" must be string'/*, [$name])*/
                 );
             }
 
@@ -264,7 +270,7 @@ class VueObject extends Component
             return $this;
         }
 
-    throw new RuntimeException(/*Yii::t('app',*/ 'Vue props must be Array or String'/*)*/);
+        throw new RuntimeException(/*Yii::t('app',*/'Vue props must be Array or String'/*)*/);
     } //end setProps()
 
 
