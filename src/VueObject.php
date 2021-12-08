@@ -4,6 +4,7 @@ namespace yii\bootstrap_vue;
 
 use Exception;
 use ReflectionClass;
+use ReflectionObject;
 use ReflectionProperty;
 use RuntimeException;
 use Throwable;
@@ -11,7 +12,7 @@ use Yii;
 use yii\base\Component;
 use yii\base\Model;
 use yii\helpers\ArrayHelper;
-use yii\helpers\Json;
+use yii\helpers\VarDumper;
 use yii\web\ErrorHandler;
 
 class VueObject extends Component
@@ -38,6 +39,13 @@ class VueObject extends Component
     }
     public static function ArrayToJsString($array)
     {
+        \YII_DEBUG && Yii::debug(
+            Yii::t(
+                'app',
+                'ArrayToString arguments: {0}',
+                [VarDumper::dumpAsString($array)]
+            )
+        );
         $jsLines = [];
         foreach ($array as $jsKey => $value) {
             Yii::info(Yii::t('app', 'Validate JS string with key - {0} ', [$jsKey]));
@@ -103,7 +111,7 @@ class VueObject extends Component
     {
         try {
             $output    = [];
-            $reflector = new ReflectionClass(__CLASS__);
+            $reflector = new ReflectionObject($this);
             $options   = $reflector->getProperties(ReflectionProperty::IS_PUBLIC | ReflectionProperty::IS_PROTECTED);
 
             $begin = $this->var . " = new Vue({\n";
@@ -151,10 +159,30 @@ class VueObject extends Component
                         $output[$prop->getName()] = $prop->getName() . "(){ \n\t" . implode("\n\t", $this->{$prop->getName()}) . "\n}";
                         break;
                     default:
-                        $output[$prop->getName()] = $prop->getName() . "(){ \n return {" . self::ArrayToJsString($this->{$prop->getName()}) . "};\n }";
+                        if (\is_string($this->{$prop->getName()})) {
+                            $output[$prop->getName()] = "{$prop->getName()}: {$prop->getName()}";
+                        } else {
+                            $output[$prop->getName()] = $prop->getName() . "(){ \n return {" . self::ArrayToJsString($this->{$prop->getName()}) . "};\n }";
+                        }
                 } //end switch
             } //end foreach
-
+            /**
+             * Extra options extract to output
+             */
+            $unClassifiedOptions = ArrayHelper::toArray($this);
+            foreach ($unClassifiedOptions as $optName => $optValue) {
+                /**
+                 * Skip some predefined public
+                 */
+                if ($optName === 'var' || $optName === 'el') {
+                    continue;
+                }
+                if (\is_string($this->{$prop->getName()})) {
+                    $output[$optName] = "{$optName}: {$optValue}";
+                } else {
+                    $output[$optName] = $optName . "(){ \n return {" . self::ArrayToJsString($optValue) . "};\n }";
+                }
+            }
             Yii::info("Vue export to string object:" . \var_export($output, true));
             $result = $begin . implode(",\n", $output) . $end;
             return $result;
@@ -183,19 +211,35 @@ class VueObject extends Component
 
     public function __set($name, $value)
     {
-        /*Yii::info(
+        YII_DEBUG && Yii::info(
             Yii::t(
                 'app',
-                "Try set VueApp->{0} with:\n {1}\n on current: {2}",
+                "Try set VueApp->{0} with:\n {1}\n",
                 [
                     $name,
-                    \var_export($value, true),
-                    var_export($this, true)
+                    VarDumper::dumpAsString($value),
                 ]
             )
-        );*/
+        );
+        $trace = (new Exception())->getTrace();
+        if (!empty($trace[1]) && 'injectVar' === $trace[1]['function']) {
+            \YII_DEBUG && Yii::info(
+                Yii::t(
+                    'app',
+                    'Inject var "{0}" by "{2}"with value: {1}',
+                    [$name, VarDumper::dumpAsString($value), $trace[1]['function']]
+                )
+            );
+            if (!is_string($value)) {
+
+            }
+            $this->{$name} = $value;
+            return $this;
+        }
+
         $options  = get_object_vars($this);
         $keysList = array_keys($options);
+
         if (!in_array($name, $keysList)) {
             throw new RuntimeException(
                 /*Yii::t('app',*/
@@ -273,5 +317,15 @@ class VueObject extends Component
         throw new RuntimeException(/*Yii::t('app',*/'Vue props must be Array or String'/*)*/);
     } //end setProps()
 
-
+    /**
+     * Inject extra component vars - like Vuetify object function
+     *
+     * @param string $name
+     * @param string $value
+     * @return void
+     */
+    public function injectVar($name, $value)
+    {
+        $this->$name = $value;
+    }
 }//end class
