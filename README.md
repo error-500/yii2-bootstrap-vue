@@ -38,6 +38,12 @@ Once the extension is installed, simply use it in your code by  :
     ]
 ```
 
+Add VueAsset in view
+```php
+    VueAsset::register($this);
+```
+
+Use widget
 ```php
 <?php $form = \yii\bootstrap_vue\widgets\ActiveForm::begin(); ?>
     <div class="row">
@@ -49,4 +55,46 @@ Once the extension is installed, simply use it in your code by  :
         </div>
     </div>
 <?php \yii\bootstrap_vue\widgets\ActiveForm; ?>
+```
+
+Add bootstrap-vue http://bootstrap-vue.org/docs/components
+in view file
+```php
+<?php
+BootsrapVueAsset::register($this);
+Yii::$app->vueApp->methods = [
+    'fileChange' => 'function(file){
+        ... some javascript code of root vue app object method ...
+    }'
+]
+Yii::$app->vueApp->data = [
+    'file' => null,
+];
+>
+<b-container>
+    <b-row>
+...
+        <b-form-file @change="fileChange" v-model="file"></b-form-file>
+...
+    </b-row>
+<b-container>
+```
+
+
+Work with main Vue app in any place of your code
+```php
+Yii::$app->vueApp->data = [
+    'prop1' => null,
+    'prop2' => false,
+    'prop3' => string,
+]
+
+Yii::$app->vueApp->methods = [
+    'methodName' => 'function(args) {
+        method javascript code
+    }'
+]
+Yi::$app->vueApp->computed = [
+    'computedPropName' => 'function(){ javascript }'
+]
 ```
