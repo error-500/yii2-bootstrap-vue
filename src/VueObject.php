@@ -2,6 +2,7 @@
 
 namespace yii\bootstrap_vue;
 
+use Closure;
 use Exception;
 use ReflectionClass;
 use ReflectionObject;
@@ -14,6 +15,7 @@ use yii\base\Model;
 use yii\helpers\ArrayHelper;
 use yii\helpers\VarDumper;
 use yii\web\ErrorHandler;
+use yii\web\JsExpression;
 
 class VueObject extends Component
 {
@@ -29,7 +31,10 @@ class VueObject extends Component
     protected $extends  = null;
     protected $mixins   = [];
 
-    private $noAssociative = [
+    private $_initPrefix = " = new Vue({\n";
+    private $_initSufix = "\n});";
+
+    private $_noAssociative = [
         'mounted',
         'created',
     ];
@@ -37,7 +42,8 @@ class VueObject extends Component
     {
         $this->data['csrfToken'] = '"' . Yii::$app->request->csrfToken . '"';
     }
-    public static function ArrayToJsString($array)
+
+    public static function arrayToJsString($array)
     {
         \YII_DEBUG && Yii::debug(
             Yii::t(
@@ -48,56 +54,56 @@ class VueObject extends Component
         );
         $jsLines = [];
         foreach ($array as $jsKey => $value) {
-            Yii::info(Yii::t('app', 'Validate JS string with key - {0} ', [$jsKey]));
-            if (\is_callable($value)) {
+            YII_DEBUG && Yii::debug(Yii::t('app', 'Validate JS string with key - {0} ', [$jsKey]));
+            if ($value instanceof Closure) {
                 $value = \call_user_func($value);
             }
             switch (true) {
-                case is_array($value):
-                    if (ArrayHelper::isAssociative($value)) {
-                        $value = "{\n\t" . self::ArrayToJsString($value) . "\n}";
-                    } else {
-                        $value = "[\n\t" . self::ArrayToJsString($value) . "\n]";
-                    }
-                    break;
-                case ($value instanceof Model):
-                    Yii::info(Yii::t('app', '{0} is yii\base\Model', [$jsKey]));
-                    $value = "{\n\t" . self::ArrayToJsString($value->toArray()) . "\n}";
-                    break;
-                case is_object($value):
-                    Yii::info(Yii::t('app', '{0} is object ', [$jsKey]));
+            case is_array($value):
+                if (ArrayHelper::isAssociative($value)) {
                     $value = "{\n\t" . self::ArrayToJsString($value) . "\n}";
-                    break;
+                } else {
+                    $value = "[\n\t" . self::ArrayToJsString($value) . "\n]";
+                }
+                break;
+            case ($value instanceof Model):
+                YII_DEBUG && Yii::debug(Yii::t('app', '{0} is yii\base\Model', [$jsKey]));
+                $value = "{\n\t" . self::ArrayToJsString($value->toArray()) . "\n}";
+                break;
+            case is_object($value):
+                YII_DEBUG && Yii::debug(Yii::t('app', '{0} is object ', [$jsKey]));
+                $value = "{\n\t" . self::ArrayToJsString($value) . "\n}";
+                break;
 
-                case \is_null($value):
-                    Yii::info(Yii::t('app', '{0} is Null', [$jsKey]));
-                    $value = 'null';
-                    break;
-                case \is_bool($value):
-                    Yii::info(Yii::t('app', '{0} is boolean', [$jsKey]));
-                    $value = $value ? 'true' : 'false';
-                    break;
-                case (null !== $json = \json_decode($value)):
-                    Yii::info(Yii::t('app', '{0} is JSON decode {1}', [$jsKey, $value]));
-                    $value = $value;
-                    break;
+            case \is_null($value):
+                YII_DEBUG && Yii::debug(Yii::t('app', '{0} is Null', [$jsKey]));
+                $value = 'null';
+                break;
+            case \is_bool($value):
+                Yii::info(Yii::t('app', '{0} is boolean', [$jsKey]));
+                $value = $value ? 'true' : 'false';
+                break;
+            case (null !== $json = \json_decode($value)):
+                Yii::info(Yii::t('app', '{0} is JSON decode {1}', [$jsKey, $value]));
+                $value = $value;
+                break;
 
-                case (is_string($value) && empty($value)):
-                    Yii::info(Yii::t('app', '{0} is empty string', [$jsKey]));
-                    $value = "''";
-                    break;
-                case (\is_string($value) && \preg_match('/^function\(.+/i', $value)):
-                case (\is_string($value) && \preg_match('/^\(\D*\)\s?=>.+/i', $value)):
-                    Yii::info(Yii::t('app', 'JS inline function string with key {1} found: {0}', [$value, $jsKey]));
-                    $value = $value;
-                    break;
-                case (is_string($value) && (null === $json = \json_decode($value))):
-                    Yii::info(Yii::t('app', '{0} is plain text', [$jsKey]));
-                    $value = "'$value'";
-                    break;
+            case (is_string($value) && empty($value)):
+                YII_DEBUG && Yii::debug(Yii::t('app', '{0} is empty string', [$jsKey]));
+                $value = "''";
+                break;
+            case (\is_string($value) && \preg_match('/^function\(.+/i', $value)):
+            case (\is_string($value) && \preg_match('/^\(\D*\)\s?=>.+/i', $value)):
+                YII_DEBUG && Yii::debug(Yii::t('app', 'JS inline function string with key {1} found: {0}', [$value, $jsKey]));
+                $value = $value;
+                break;
+            case (is_string($value) && (null === $json = \json_decode($value))):
+                YII_DEBUG && Yii::debug(Yii::t('app', '{0} is plain text', [$jsKey]));
+                $value = "'$value'";
+                break;
             }
             if (ArrayHelper::isAssociative($array)) {
-                $jsLines[] = $jsKey . ":" . $value;
+                $jsLines[] = $jsKey . ':' . $value;
             } else {
                 $jsLines[] = $value;
             }
@@ -114,8 +120,8 @@ class VueObject extends Component
             $reflector = new ReflectionObject($this);
             $options   = $reflector->getProperties(ReflectionProperty::IS_PUBLIC | ReflectionProperty::IS_PROTECTED);
 
-            $begin = $this->var . " = new Vue({\n";
-            $end   = "\n});";
+            $begin = $this->var . $this->_initPrefix;
+            $end   = $this->_initSufix;
 
             $options = \array_filter(
                 $options,
@@ -133,37 +139,42 @@ class VueObject extends Component
             );
             foreach ($options as $prop) {
                 switch ($prop->getName()) {
-                    case "var":
+                case 'var':
+                    break;
+                case 'el':
+                    $output[$prop->getName()] = "{$prop->getName()}: '{$this->{$prop->getName()}}'";
+                    break;
+                case 'extends':
+                    $output[$prop->getName()] = $prop->getName()
+                        . ": {$this->{$prop->getName()}}";
+                    break;
+                case 'computed':
+                case 'methods':
+                case 'watch':
+                    if (!is_array($this->{$prop->getName()})
+                        || !ArrayHelper::isAssociative($this->{$prop->getName()})
+                    ) {
                         break;
-                    case "el":
-                        $output[$prop->getName()] = "{$prop->getName()}: '{$this->{$prop->getName()}}'";
-                        break;
-                    case "extends":
-                        $output[$prop->getName()] = $prop->getName() . ": {$this->{$prop->getName()}}";
-                        break;
-                    case "computed":
-                    case "methods":
-                    case "watch":
-                        if (
-                            !is_array($this->{$prop->getName()})
-                            || !ArrayHelper::isAssociative($this->{$prop->getName()})
-                        ) {
-                            break;
-                        }
-
-                        $output[$prop->getName()] = $prop->getName() . ":{\n\t" . self::ArrayToJsString($this->{$prop->getName()}) . "\n}";
-                        break;
-                    case "created":
-                    case "updated":
-                    case "mounted":
-                        $output[$prop->getName()] = $prop->getName() . "(){ \n\t" . implode("\n\t", $this->{$prop->getName()}) . "\n}";
-                        break;
-                    default:
-                        if (\is_string($this->{$prop->getName()})) {
-                            $output[$prop->getName()] = "{$prop->getName()}: {$prop->getName()}";
-                        } else {
-                            $output[$prop->getName()] = $prop->getName() . "(){ \n return {" . self::ArrayToJsString($this->{$prop->getName()}) . "};\n }";
-                        }
+                    }
+                    $output[$prop->getName()] = $prop->getName() . ":{\n\t" . static::ArrayToJsString($this->{$prop->getName()}) . "\n}";
+                    break;
+                case 'created':
+                case 'updated':
+                case 'mounted':
+                    $output[$prop->getName()] = $prop->getName()
+                        . "(){ \n\t" . implode("\n\t", $this->{$prop->getName()}) . "\n}";
+                    break;
+                case 'data':
+                    $output['data'] = "data:{\n\t"
+                        . static::arrayToJsString($this->{$prop->getName()}) . "\n}";
+                    break;
+                default:
+                    if (\is_string($this->{$prop->getName()})) {
+                        $output[$prop->getName()] = "{$prop->getName()}: {$prop->getName()}";
+                    } else {
+                        $output[$prop->getName()] = $prop->getName() . "(){\n return {"
+                            . self::ArrayToJsString($this->{$prop->getName()}) . "};\n }";
+                    }
                 } //end switch
             } //end foreach
             /**
@@ -180,21 +191,19 @@ class VueObject extends Component
                 if (\is_string($this->{$prop->getName()})) {
                     $output[$optName] = "{$optName}: {$optValue}";
                 } else {
-                    $output[$optName] = $optName . "(){ \n return {" . self::ArrayToJsString($optValue) . "};\n }";
+                    $output[$optName] = $optName . "(){ \n return {" . self::arrayToJsString($optValue) . "};\n }";
                 }
             }
-            Yii::info("Vue export to string object:" . \var_export($output, true));
+            YII_DEBUG && Yii::debug(Yii::info('Vue export to string object:' . \var_export($output, true)));
             $result = $begin . implode(",\n", $output) . $end;
             return $result;
-        } //end try
-        catch (Exception $e) {
+        } catch (Exception $e) {
             ErrorHandler::convertExceptionToError($e);
             return '';
         } catch (Throwable $e) {
             ErrorHandler::convertExceptionToError($e);
             return '';
         } //end try
-
     } //end __toString()
 
 
@@ -204,6 +213,9 @@ class VueObject extends Component
         if (isset($this->{$name})) {
             return $this->$name;
         }
+        if (isset($this->{'_' . $name})) {
+            return $this->{'_' . $name};
+        }
 
         return false;
     } //end __get()
@@ -211,6 +223,15 @@ class VueObject extends Component
 
     public function __set($name, $value)
     {
+        if (in_array($name, ['initPrefix', 'initSufix'])) {
+            $name = '_' . $name;
+            if ($value instanceof Closure) {
+                $this->{$name} = call_user_func($value);
+            } else {
+                $this->{$name} = $value;
+            }
+        }
+
         YII_DEBUG && Yii::info(
             Yii::t(
                 'app',
@@ -222,6 +243,7 @@ class VueObject extends Component
             )
         );
         $trace = (new Exception())->getTrace();
+
         if (!empty($trace[1]) && 'injectVar' === $trace[1]['function']) {
             \YII_DEBUG && Yii::info(
                 Yii::t(
@@ -231,7 +253,9 @@ class VueObject extends Component
                 )
             );
             if (!is_string($value)) {
-
+                if ($value instanceof Closure) {
+                    $value = call_user_func($value);
+                }
             }
             $this->{$name} = $value;
             return $this;
@@ -248,10 +272,9 @@ class VueObject extends Component
         }
 
         if (is_array($options[$name])) {
-            if (
-                !is_array($value)
-                || (!\in_array($name, $this->noAssociative)
-                    && !ArrayHelper::isAssociative($value))
+            if (!is_array($value)
+                || (!\in_array($name, $this->_noAssociative)
+                && !ArrayHelper::isAssociative($value))
             ) {
                 throw new RuntimeException(
                     /*Yii::t('app',*/
@@ -318,14 +341,57 @@ class VueObject extends Component
     } //end setProps()
 
     /**
+     * Start of init vue app script string
+     * by default it is: "const app = new Vue({"
+     * in a some custom bundles you need more then
+     * VueSingleton object collect in Models Actions & Views
+     *
+     * @param string $value JsExpression string
+     *
+     * @return void
+     */
+    public function setInitPrefix($value)
+    {
+        if (!is_string($value)) {
+            if ($value instanceof Closure) {
+                $value = call_user_func($value);
+            }
+        }
+        $this->_initPrefix = $value;
+    }
+    /**
+     * Finish of init vue app script string
+     * by default it is: "});"
+     * in a some custom bundles you need more then
+     * VueSingleton object collect in Models Actions & Views
+     * or not mount imidiatli
+     *
+     * @param string $value JsExpression string
+     *
+     * @see    https://vuejs.org/v2/api/#Instance-Methods-Lifecycle
+     * @return void
+     */
+    public function setInitSufix($value)
+    {
+        if (!is_string($value)) {
+            if ($value instanceof Closure) {
+                $value = call_user_func($value);
+            }
+        }
+        $this->_initSufix = $value;
+    }
+    /**
      * Inject extra component vars - like Vuetify object function
      *
-     * @param string $name
-     * @param string $value
+     * @param string $name  Key for insertion
+     * @param string $value String value or JsExpression instance
+     *
      * @return void
      */
     public function injectVar($name, $value)
     {
-        $this->$name = $value;
+        $this->$name = !($value instanceof JsExpression )
+            ? new JsExpression($value)
+            : $value;
     }
 }//end class
