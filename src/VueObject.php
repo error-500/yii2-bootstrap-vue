@@ -16,6 +16,9 @@ use yii\helpers\ArrayHelper;
 use yii\helpers\VarDumper;
 use yii\web\ErrorHandler;
 use yii\web\JsExpression;
+/**
+ * Inital Vue app options global singleton component
+ */
 
 class VueObject extends Component
 {
@@ -38,11 +41,27 @@ class VueObject extends Component
         'mounted',
         'created',
     ];
+
+    /**
+     * @inheritDoc
+     *
+     * @return void
+     */
     public function init()
     {
+        parent::init();
         $this->data['csrfToken'] = '"' . Yii::$app->request->csrfToken . '"';
     }
-
+    /**
+     * Conver inital Vue app options object in to
+     * string with options structure and rules
+     *
+     * @param mixed $array inital Vue app optins structure
+     *
+     * @return string
+     *
+     * @throws Exception
+     */
     public static function arrayToJsString($array)
     {
         \YII_DEBUG && Yii::debug(
@@ -66,15 +85,18 @@ class VueObject extends Component
                     $value = "[\n\t" . self::ArrayToJsString($value) . "\n]";
                 }
                 break;
-            case ($value instanceof Model):
+            case (\is_subclass_of($value, JsExpression::class)):
+                YII_DEBUG && Yii::debug(Yii::t('app', '{0} is javascript string: {1}', [$jsKey, $value]));
+                $value = "{\n\t" . $value->__toString() . "\n}";
+                break;
+            case (is_subclass_of($value, Model::class)):
                 YII_DEBUG && Yii::debug(Yii::t('app', '{0} is yii\base\Model', [$jsKey]));
                 $value = "{\n\t" . self::ArrayToJsString($value->toArray()) . "\n}";
                 break;
-            case is_object($value):
+            case ArrayHelper::isTraversable($value):
                 YII_DEBUG && Yii::debug(Yii::t('app', '{0} is object ', [$jsKey]));
                 $value = "{\n\t" . self::ArrayToJsString($value) . "\n}";
                 break;
-
             case \is_null($value):
                 YII_DEBUG && Yii::debug(Yii::t('app', '{0} is Null', [$jsKey]));
                 $value = 'null';
@@ -83,12 +105,18 @@ class VueObject extends Component
                 Yii::info(Yii::t('app', '{0} is boolean', [$jsKey]));
                 $value = $value ? 'true' : 'false';
                 break;
-            case (null !== $json = \json_decode($value)):
-                Yii::info(Yii::t('app', '{0} is JSON decode {1}', [$jsKey, $value]));
-                $value = $value;
+            case (!is_subclass_of($value, JsExpression::class)
+                    && (null !== $json = \json_decode($value))):
+                    Yii::info(
+                        Yii::t(
+                            'app',
+                            '{0} is JSON decode {1}',
+                            [$jsKey, $value]
+                        )
+                    );
+                    $value = $value;
                 break;
-
-            case (is_string($value) && empty($value)):
+            case (is_string($value) && empty($value) && !is_subclass_of($value, JsExpression::class)):
                 YII_DEBUG && Yii::debug(Yii::t('app', '{0} is empty string', [$jsKey]));
                 $value = "''";
                 break;
@@ -97,11 +125,12 @@ class VueObject extends Component
                 YII_DEBUG && Yii::debug(Yii::t('app', 'JS inline function string with key {1} found: {0}', [$value, $jsKey]));
                 $value = $value;
                 break;
-            case (is_string($value) && (null === $json = \json_decode($value))):
+            case (is_string($value) && !is_subclass_of($value, JsExpression::class) && (null === $json = \json_decode($value))):
                 YII_DEBUG && Yii::debug(Yii::t('app', '{0} is plain text', [$jsKey]));
                 $value = "'$value'";
                 break;
             }
+
             if (ArrayHelper::isAssociative($array)) {
                 $jsLines[] = $jsKey . ':' . $value;
             } else {
@@ -112,7 +141,12 @@ class VueObject extends Component
         return implode(",\n", $jsLines);
     } //end ArrayToJsString()
 
-
+    /**
+     * Redefine magic function for convert object to string
+     * in concate with strings
+     *
+     * @return string
+     */
     public function __toString()
     {
         try {
@@ -151,6 +185,10 @@ class VueObject extends Component
                 case 'computed':
                 case 'methods':
                 case 'watch':
+                    if (is_subclass_of($this->{$prop->getName()}, JsExpression::class)) {
+                        $output[$prop->getName()] = $prop->getName() . ":{\n\t" . $this->{$prop->getName()}->__toString() . "\n}";
+                        break;
+                    }
                     if (!is_array($this->{$prop->getName()})
                         || !ArrayHelper::isAssociative($this->{$prop->getName()})
                     ) {
@@ -272,9 +310,10 @@ class VueObject extends Component
         }
 
         if (is_array($options[$name])) {
-            if (!is_array($value)
+            if (
+                !is_array($value)
                 || (!\in_array($name, $this->_noAssociative)
-                && !ArrayHelper::isAssociative($value))
+                    && !ArrayHelper::isAssociative($value))
             ) {
                 throw new RuntimeException(
                     /*Yii::t('app',*/
@@ -390,7 +429,7 @@ class VueObject extends Component
      */
     public function injectVar($name, $value)
     {
-        $this->$name = !($value instanceof JsExpression )
+        $this->$name = !($value instanceof JsExpression)
             ? new JsExpression($value)
             : $value;
     }
